@@ -10,8 +10,8 @@ INITIAL_CAPITAL = 100_000
 MAX_POSITIONS = 4
 POSITION_SIZE = 0.25
 MAX_HOLD_DAYS = 30
-START_DATE = "2025-01-02"
-END_DATE = "2025-12-31"
+START_DATE = "2026-01-02"
+END_DATE = "2026-07-03"
 SLIPPAGE = 0.002
 COMMISSION = 0.0003
 HARD_STOP = -0.05
@@ -78,7 +78,7 @@ def get_all_codes():
 
 def fetch_kline(symbol):
     try:
-        url=f"{SINA_KLINE}?symbol={symbol}&scale=240&ma=no&datalen=500"
+        url=f"{SINA_KLINE}?symbol={symbol}&scale=240&ma=no&datalen=200"
         req=request.Request(url,headers={"Referer":"http://finance.sina.com.cn"})
         with request.urlopen(req,timeout=15) as resp: data=json.loads(resp.read().decode("utf-8"))
         if not data: return None
@@ -122,10 +122,7 @@ def compute_gate_indicators(bars):
 def gate5_score_v2(bars,idx,inds,pe_val,is_tech,market_regime):
     closes,ma20,ma60,gain30,gain5,vr,vr3,rsi=inds
     price=closes[idx]
-    # V4: RSI > 70 → overheating, reject
-    if rsi[idx] > 70: return None
-    # V4: volume divergence - price up but vol below 20d avg (vr<1.0)
-    if gain5[idx] > 3 and vr[idx] < 1.0: return None
+    # V3: no RSI or volume divergence filter
     if market_regime=="bull": gate1_max=50; gate4_min=0.7
     elif market_regime=="bear": gate1_max=20; gate4_min=0.9
     else: gate1_max=20; gate4_min=0.85

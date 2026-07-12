@@ -36,22 +36,40 @@ INITIAL = {
                ("301138","华研精机",34.04,32.34,2200,"2026-07-03")]}
 
 def get_price_info(code):
+    """Tencent API: returns (open, now, last_close). Batch-fetches all in one call."""
+    return get_price_batch(code)[1:4]
+
+def get_price_batch(code):
+    """Returns (now, open, last_close, name) from Tencent. All stocks cached per run."""
+    global _price_cache
+    if '_price_cache' not in globals() or not hasattr(get_price_batch, 'cache'):
+        get_price_batch.cache = {}
+    if code in get_price_batch.cache:
+        return get_price_batch.cache[code]
     try:
         pfx = "sh" if code.startswith("6") else "sz"
-        req = urllib.request.Request(f"http://hq.sinajs.cn/list={pfx}{code}", 
-                                      headers={"Referer":"https://finance.sina.com.cn"})
+        url = f"http://qt.gtimg.cn/q={pfx}{code}"
+        req = urllib.request.Request(url, headers={"Referer":"https://finance.qq.com"})
         with urllib.request.urlopen(req, timeout=5) as r:
-            f = r.read().decode("gbk").split('"')[1].split(",")
-        return float(f[1]), float(f[3]), float(f[2])
-    except: return None, None, None
+            raw = r.read().decode("gbk")
+        f = raw.split('"')[1].split("~")
+        result = (float(f[3]), float(f[5]) if f[5] else float(f[3]), float(f[4]), f[1])
+        get_price_batch.cache[code] = result
+        return result
+    except:
+        empty = (None, None, None, "")
+        get_price_batch.cache[code] = empty
+        return empty
 
 def is_panic():
+    """SH down > 2% via Tencent API."""
     try:
-        req = urllib.request.Request("http://hq.sinajs.cn/list=s_sh000001", 
-                                      headers={"Referer":"https://finance.sina.com.cn"})
+        req = urllib.request.Request("http://qt.gtimg.cn/q=sh000001", 
+                                      headers={"Referer":"https://finance.qq.com"})
         with urllib.request.urlopen(req, timeout=5) as r:
-            pct = float(r.read().decode("gbk").split('"')[1].split(",")[3])
-        return pct < PANIC_THRESHOLD
+            f = r.read().decode("gbk").split('"')[1].split("~")
+        pct = float(f[32])  # change %
+        return pct < -2.0
     except: return False
 
 def load_state():
@@ -105,7 +123,7 @@ def main():
     new_stops = {"烽火V5":0,"5-Gate":0}
     panic = is_panic()
     
-    if panic: alerts.append("🌪️ 恐慌! SH跌超2% 暂停补仓")
+    if panic: alerts.append("PANIC! SH跌超2% freeze")
 
     for strategy in ["烽火V5","5-Gate"]:
         if not state[strategy]:
@@ -116,7 +134,7 @@ def main():
 
     for strategy in ["烽火V5","5-Gate"]:
         if in_circuit(state, strategy):
-            alerts.append(f"⛔ {strategy} 熔断至{state['circuit_until'][strategy]}")
+            alerts.append(f"XX  {strategy} CIRCUIT until{state['circuit_until'][strategy]}")
             continue
         
         remaining = []
@@ -131,7 +149,7 @@ def main():
             
             if limit_down and can_sell:
                 cash = pos["shares"]*open_p*0.9975
-                alerts.append(f"💀 {strategy} {code} {pos.get('name','')} 跌停低开! {open_p:.2f} ¥{cash:,.0f}")
+                alerts.append(f"XX  {strategy} {code} {pos.get('name','')} LIMIT-DOWN SELL! {open_p:.2f} ¥{cash:,.0f}")
                 sold_cash[strategy] += cash; new_stops[strategy] += 1
                 save_trade({"date":today,"strategy":strategy,"action":"卖出","code":code,
                     "name":pos.get("name",""),"price":round(open_p,2),"shares":pos["shares"],
@@ -144,9 +162,9 @@ def main():
                     "name":pos.get("name",""),"price":round(now_p,2),"shares":pos["shares"],
                     "amount":round(cash,0),"reason":"止损","pnl_pct":round(pnl,1)})
             elif now_p <= pos["stop"] and not can_sell:
-                alerts.append(f"🔒 {strategy} {code} T+1锁定"); remaining.append(pos)
+                alerts.append(f"🔒 {strategy} {code} T+1 LOCKED"); remaining.append(pos)
             elif pnl < -3:
-                alerts.append(f"⚠️ {strategy} {code} ¥{now_p:.2f} {pnl:+.1f}%"); remaining.append(pos)
+                alerts.append(f"!!  {strategy} {code} ¥{now_p:.2f} {pnl:+.1f}%"); remaining.append(pos)
             else:
                 remaining.append(pos)
         
@@ -165,11 +183,11 @@ def main():
             state[strategy] = []; state["cash"][strategy] += extra_cash
             state["circuit_breaker"][strategy] = 0
             state["circuit_until"][strategy] = (today+timedelta(days=CIRCUIT_DAYS)).isoformat()
-            alerts.append(f"⛔ {strategy} 熔断! {CIRCUIT_BREAK}连损 清仓至{state['circuit_until'][strategy]}")
+            alerts.append(f"XX  {strategy} CIRCUIT BREAK! {CIRCUIT_BREAK}losses, liquidate clear until{state['circuit_until'][strategy]}")
         else:
             state["circuit_breaker"][strategy] = cb
 
-    # 补仓（非熔断+非恐慌）
+    # REBUY（非熔断+非恐慌）
     for strategy in ["烽火V5","5-Gate"]:
         if in_circuit(state, strategy) or panic: continue
         if sold_cash[strategy] <= 0: continue
@@ -178,15 +196,15 @@ def main():
         exclude = [p["code"] for p in state[strategy]]
         picks = run_screener(exclude, total_cash)
         if picks:
-            alerts.append(f"🟢 {strategy} 补仓 ¥{total_cash:,.0f}:")
+            alerts.append(f">>  {strategy} REBUY ¥{total_cash:,.0f}:")
             for code, name, price, shares, cost, score in picks:
                 if len(state[strategy]) >= 4: break
                 state[strategy].append({"code":code,"name":name,"cost":price*1.0025,
                     "stop":price*0.95,"shares":shares,"buy_date":today})
                 state["cash"][strategy] -= cost
                 save_trade({"date":today,"strategy":strategy,"action":"买入","code":code,
-                    "name":name,"price":round(price,2),"shares":shares,"amount":round(cost,0),"reason":"补仓"})
-                alerts.append(f"  ✅ {code} {name} {shares}股 ¥{price:.2f}")
+                    "name":name,"price":round(price,2),"shares":shares,"amount":round(cost,0),"reason":"REBUY"})
+                alerts.append(f"  OK  {code} {name} {shares}s ¥{price:.2f}")
 
     save_state(state)
     if alerts:

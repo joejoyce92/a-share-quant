@@ -23,13 +23,15 @@ STRATEGY_CONFIG = {
         ("601991","大唐发电",7.81,7.42,9600),("301138","华研精机",34.04,32.34,2200),
     ]},
 }
-
 def get_price(code):
+    """Tencent API: returns current price."""
     try:
         pfx = "sh" if code.startswith("6") else "sz"
-        req = urllib.request.Request(f"http://hq.sinajs.cn/list={pfx}{code}", headers={"Referer":"https://finance.sina.com.cn"})
+        url = f"http://qt.gtimg.cn/q={pfx}{code}"
+        req = urllib.request.Request(url, headers={"Referer":"https://finance.qq.com"})
         with urllib.request.urlopen(req, timeout=5) as r:
-            return float(r.read().decode("gbk").split('"')[1].split(",")[3])
+            f = r.read().decode("gbk").split('"')[1].split("~")
+        return float(f[3])
     except: return None
 
 def load_trades():
@@ -52,11 +54,13 @@ def main():
     old_stdout = sys.stdout
     sys.stdout = buffer = io.StringIO()
 
-    # SH index
-    req = urllib.request.Request("http://hq.sinajs.cn/list=s_sh000001", headers={"Referer":"https://finance.sina.com.cn"})
+    # SH index (Tencent)
+    req = urllib.request.Request("http://qt.gtimg.cn/q=sh000001", headers={"Referer":"https://finance.qq.com"})
     with urllib.request.urlopen(req, timeout=5) as r:
-        shp, shc, shpct = [float(x) for x in r.read().decode("gbk").split('"')[1].split(",")[1:4]]
+        f = r.read().decode("gbk").split('"')[1].split("~")
+    shp = float(f[3]); shc = float(f[31]); shpct = float(f[32])
 
+    # MA20 (Sina - Tencent doesn't provide K-line in simple API)
     req = urllib.request.Request("https://quotes.sina.cn/cn/api/jsonp_v2.php/data/CN_MarketDataService.getKLineData?symbol=sh000001&scale=240&ma=no&datalen=30", headers={"Referer":"https://finance.sina.com.cn"})
     with urllib.request.urlopen(req, timeout=5) as r:
         m = re.search(r'\((.*)\)', r.read().decode("utf-8"), re.DOTALL)
