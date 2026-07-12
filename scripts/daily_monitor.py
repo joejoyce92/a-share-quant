@@ -79,7 +79,9 @@ def main():
 
     # ====== REPORT ======
     print(f"# 📊 持仓日报 {today} {now}")
-    print(f"\n## 🏛️ 市场 | 上证 {shp:.0f}({shc:+.0f}/{shpct:+.1f}%) | MA20 {ma20:.0f} | {regime_label}")
+    print(f"## 🏛️ 市场 | 上证 {shp:.0f}({shc:+.0f}/{shpct:+.1f}%) | MA20 {ma20:.0f} | {regime_label}")
+    panic_str = "🌪️恐慌" if shpct < -2.0 else "✅正常"
+    print(f"恐慌指数: {panic_str} (SH{shpct:+.1f}%)")
     print()
 
     strat_results = {}
