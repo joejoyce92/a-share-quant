@@ -36,8 +36,9 @@ INITIAL = {
                ("301138","华研精机",34.04,32.34,2200,"2026-07-03")]}
 
 def get_price_info(code):
-    """Tencent API: returns (open, now, last_close). Batch-fetches all in one call."""
-    return get_price_batch(code)[1:4]
+    """Returns (open, now, last_close) from Tencent API."""
+    r = get_price_batch(code)
+    return r[1], r[0], r[2]  # open, now, last_close
 
 def get_price_batch(code):
     """Returns (now, open, last_close, name) from Tencent. All stocks cached per run."""
