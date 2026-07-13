@@ -95,6 +95,7 @@ def main():
     if now.weekday() >= 5: return
     t = now.hour*60+now.minute
     if t < 570 or (690 < t < 780) or t >= 900: return
+    # Only write state if this is a real trading hour invocation
 
     state = load_state()
     today = date.today().isoformat()
