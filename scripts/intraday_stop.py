@@ -62,16 +62,20 @@ def get_price_batch(code):
         get_price_batch.cache[code] = empty
         return empty
 
-def is_panic():
-    """SH down > 2% via Tencent API."""
+def get_panic_level():
+    """Return (level, label). 0=贪婪 1=正常 2=谨慎 3=恐慌 4=极度恐慌."""
     try:
         req = urllib.request.Request("http://qt.gtimg.cn/q=sh000001", 
                                       headers={"Referer":"https://finance.qq.com"})
         with urllib.request.urlopen(req, timeout=5) as r:
             f = r.read().decode("gbk").split('"')[1].split("~")
-        pct = float(f[32])  # change %
-        return pct < -2.0
-    except: return False
+        pct = float(f[32])
+        if pct > 0.5: return 0, "😊贪婪"
+        elif pct > -1.0: return 1, "😐正常偏弱"
+        elif pct > -2.0: return 2, "😟谨慎"
+        elif pct > -3.0: return 3, "😨恐慌"
+        else: return 4, "💀极度恐慌"
+    except: return 1, "😐正常偏弱"
 
 def load_state():
     if os.path.exists(STATE_FILE):
@@ -122,9 +126,14 @@ def main():
     alerts = []
     sold_cash = {"烽火V5":0,"5-Gate":0}
     new_stops = {"烽火V5":0,"5-Gate":0}
-    panic = is_panic()
+    panic_level, panic_label = get_panic_level()
+    freeze_buy = panic_level >= 3       # 恐慌+ → 停补仓
+    extreme_panic = panic_level >= 4    # 极度恐慌 → 减半仓
     
-    if panic: alerts.append("PANIC! SH跌超2% freeze")
+    if panic_level >= 3:
+        alerts.append(f"XX {panic_label}! SH panic level {panic_level}")
+    if extreme_panic:
+        alerts.append(f"XX {panic_label}! panic level {panic_level} - halving positions")
 
     for strategy in ["烽火V5","5-Gate"]:
         if not state[strategy]:
@@ -188,9 +197,21 @@ def main():
         else:
             state["circuit_breaker"][strategy] = cb
 
+    # 极度恐慌：清半仓
+    if extreme_panic:
+        for strategy in ["烽火V5","5-Gate"]:
+            if in_circuit(state, strategy): continue
+            for pos in list(state[strategy]):
+                if len(state[strategy]) <= 2: break
+                _, now_p, _ = get_price_info(pos["code"])
+                if now_p:
+                    state["cash"][strategy] += pos["shares"]*now_p*0.9975
+                    alerts.append(f"!! {strategy} {pos['code']} panic halve")
+                    state[strategy].remove(pos)
+
     # REBUY（非熔断+非恐慌）
     for strategy in ["烽火V5","5-Gate"]:
-        if in_circuit(state, strategy) or panic: continue
+        if in_circuit(state, strategy) or freeze_buy: continue
         if sold_cash[strategy] <= 0: continue
         total_cash = state["cash"][strategy]
         if len(state[strategy]) >= 4: continue
