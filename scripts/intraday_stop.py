@@ -74,7 +74,7 @@ def in_circuit(s, strategy):
     u = s["circuit_until"].get(strategy,"")
     return u and u >= date.today().isoformat()
 
-def run_screener(exclude_codes, capital):
+def run_screener(exclude_codes, capital, pos_pct=0.125):
     script = r"C:\Users\JoeJoyce\AppData\Local\hermes\plugins\stock-analysis-plugin\skills\stock-screener\scripts\baostock_screener.py"
     try:
         cmd = f'"C:/Users/JoeJoyce/AppData/Local/Microsoft/WindowsApps/python3" "{script}" --top 15 --style trend'
@@ -83,7 +83,7 @@ def run_screener(exclude_codes, capital):
         for c in data.get("candidates",[]):
             code = c["symbol"]
             if code in exclude_codes or "ST" in c["name"]: continue
-            price = c["price"]; amount = capital*0.125
+            price = c["price"]; amount = capital * pos_pct
             shares = int(amount/(price*1.0025)/100)*100
             if shares < 100: continue
             picks.append((code,c["name"],price,shares,shares*price*1.0025,c["scores"]["composite"]))
@@ -192,7 +192,12 @@ def main():
             if slots <= 0: continue
             if total_cash < 15000: continue  # need at least ¥15k to buy
             exclude = [p["code"] for p in state[st]]
-            picks = run_screener(exclude, total_cash)
+            # 烽火V5: 25% fixed. 5-Gate: 25% bull / 12.5% range
+            if st == "烽火V5":
+                pct = 0.25
+            else:
+                pct = 0.25 if panic <= 0 else 0.125  # bull -> 25%, else 12.5%
+            picks = run_screener(exclude, total_cash, pct)
             if picks:
                 lines.append(f"FILL {st} cash{total_cash:,.0f} slots{slots}")
                 for code,name,price,shares,cost,score in picks:
