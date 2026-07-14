@@ -183,16 +183,18 @@ def main():
                     lines.append(f"HALVE {st} {pos['code']} extreme panic")
                     state[st].remove(pos)
 
-    # Rebuy
+    # Rebuy (after sells OR when capacity available)
     if panic < PANIC_FREEZE:
         for st in ["烽火V5","5-Gate"]:
-            if in_circuit(state,st) or sold[st] <= 0: continue
+            if in_circuit(state,st): continue
             total_cash = state["cash"][st]
-            if len(state[st]) >= 4: continue
+            slots = 4 - len(state[st])
+            if slots <= 0: continue
+            if total_cash < 15000: continue  # need at least ¥15k to buy
             exclude = [p["code"] for p in state[st]]
             picks = run_screener(exclude, total_cash)
             if picks:
-                lines.append(f"REBUY {st} cash{total_cash:,.0f}")
+                lines.append(f"FILL {st} cash{total_cash:,.0f} slots{slots}")
                 for code,name,price,shares,cost,score in picks:
                     if len(state[st]) >= 4: break
                     state[st].append({"code":code,"name":name,"cost":price*1.0025,"stop":price*0.95,"shares":shares,"buy_date":today})
