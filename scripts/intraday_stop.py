@@ -185,7 +185,6 @@ def main():
 
     # Rebuy (after sells OR when capacity available)
     if panic < PANIC_FREEZE:
-        prev_buys = set()  # track previous strategy's picks to avoid overlap
         for st in ["烽火V5","5-Gate"]:
             if in_circuit(state,st): continue
             total_cash = state["cash"][st]
@@ -194,7 +193,7 @@ def main():
             tv = sum(quotes.get(p["code"],{}).get("now",p["cost"])*p["shares"] for p in state[st])
             total_capital = state["cash"][st] + tv
             if total_capital < 15000: continue
-            exclude = [p["code"] for p in state[st]] + list(prev_buys)  # skip other strategy's picks
+            exclude = [p["code"] for p in state[st]]
             pct = 0.25 if st == "烽火V5" else (0.25 if panic <= 0 else 0.125)
             picks = run_screener(exclude, total_capital, pct)
             if picks:
@@ -205,7 +204,6 @@ def main():
                     state["cash"][st] -= cost
                     save_trade({"date":today,"strategy":st,"action":"BUY","code":code,"name":name,"price":round(price,2),"shares":shares,"amount":round(cost,0),"reason":"rebuy"})
                     lines.append(f"  BUY {code} {name} {shares}s {price:.2f}")
-                    prev_buys.add(code)  # block next strategy from buying same
 
     save_state(state)
     # Update circuit breaker counters (preserved across rebalances)
