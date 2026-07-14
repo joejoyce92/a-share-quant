@@ -190,16 +190,15 @@ def main():
             total_cash = state["cash"][st]
             slots = 4 - len(state[st])
             if slots <= 0: continue
-            if total_cash < 15000: continue  # need at least ¥15k to buy
+            # Total capital = cash + current holdings value
+            tv = sum(quotes.get(p["code"],{}).get("now",p["cost"])*p["shares"] for p in state[st])
+            total_capital = state["cash"][st] + tv
+            if total_capital < 15000: continue
             exclude = [p["code"] for p in state[st]]
-            # 烽火V5: 25% fixed. 5-Gate: 25% bull / 12.5% range
-            if st == "烽火V5":
-                pct = 0.25
-            else:
-                pct = 0.25 if panic <= 0 else 0.125  # bull -> 25%, else 12.5%
-            picks = run_screener(exclude, total_cash, pct)
+            pct = 0.25 if st == "烽火V5" else (0.25 if panic <= 0 else 0.125)
+            picks = run_screener(exclude, total_capital, pct)
             if picks:
-                lines.append(f"FILL {st} cash{total_cash:,.0f} slots{slots}")
+                lines.append(f"FILL {st} capital{total_capital:,.0f} slots{slots}")
                 for code,name,price,shares,cost,score in picks:
                     if len(state[st]) >= 4: break
                     state[st].append({"code":code,"name":name,"cost":price*1.0025,"stop":price*0.95,"shares":shares,"buy_date":today})
