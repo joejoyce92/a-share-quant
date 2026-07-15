@@ -119,11 +119,8 @@ def main():
         for p in state[st]: all_codes.add(p["code"])
     quotes = fetch_tencent(all_codes)
 
-    # Sell loop
+    # Sell loop (runs even during circuit breaker - must respect stops)
     for st in ["烽火V5","5-Gate"]:
-        if in_circuit(state,st):
-            lines.append(f"CIRCUIT {st} until {state['circuit_until'][st]}")
-            continue
         remaining = []
         for pos in state[st]:
             q = quotes.get(pos["code"])
@@ -182,6 +179,11 @@ def main():
                     state["cash"][st] += pos["shares"]*q["now"]*0.9975
                     lines.append(f"HALVE {st} {pos['code']} extreme panic")
                     state[st].remove(pos)
+
+    # Circuit breaker status (block rebuy, but sells already processed above)
+    for st in ["烽火V5","5-Gate"]:
+        if in_circuit(state,st):
+            lines.append(f"CIRCUIT {st} until {state['circuit_until'][st]}")
 
     # Rebuy (after sells OR when capacity available)
     if panic < PANIC_FREEZE:
