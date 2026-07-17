@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 
 STATE_FILE = os.path.expanduser("~/Desktop/intraday_positions.json")
 TRADES_FILE = os.path.expanduser("~/Desktop/trades.json")
-CIRCUIT_BREAK = 3
+CIRCUIT_BREAK = 999  # 禁用熔断
 CIRCUIT_DAYS = 5
 
 def load_trades():
@@ -134,18 +134,18 @@ def main():
 
             if limit_down and can_sell:
                 cash = sh*open_p*0.9975
-                lines.append(f"LIMITDOWN {st} {pos['code']} {pos.get('name','')} {open_p:.2f} rcv{cash:,.0f}")
+                lines.append(f"LIMITDOWN {st} {pos['code']} {open_p:.2f} rcv{cash:,.0f}")
                 sold[st] += cash; stops[st] += 1
                 save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(open_p,2),"shares":sh,"amount":round(cash,0),"reason":"limit-down"})
             elif now_p <= pos["stop"] and can_sell:
                 cash = sh*now_p*0.9975
-                lines.append(f"STOP {st} {pos['code']} {pos.get('name','')} {now_p:.2f} rcv{cash:,.0f}")
+                lines.append(f"STOP {st} {pos['code']} {now_p:.2f} rcv{cash:,.0f}")
                 sold[st] += cash; stops[st] += 1
                 save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(now_p,2),"shares":sh,"amount":round(cash,0),"reason":"stop","pnl_pct":round(pnl,1)})
             elif now_p <= pos["stop"] and not can_sell:
                 lines.append(f"LOCK {st} {pos['code']} T+1"); remaining.append(pos)
             elif pnl < -3:
-                lines.append(f"WARN {st} {pos['code']} {pos.get('name','')} {now_p:.2f} {pnl:+.1f}%"); remaining.append(pos)
+                lines.append(f"WARN {st} {pos['code']} {now_p:.2f} {pnl:+.1f}%"); remaining.append(pos)
             else:
                 remaining.append(pos)
         state[st] = remaining
@@ -205,7 +205,7 @@ def main():
                     state[st].append({"code":code,"name":name,"cost":price*1.0025,"stop":price*0.95,"shares":shares,"buy_date":today})
                     state["cash"][st] -= cost
                     save_trade({"date":today,"strategy":st,"action":"BUY","code":code,"name":name,"price":round(price,2),"shares":shares,"amount":round(cost,0),"reason":"rebuy"})
-                    lines.append(f"  BUY {code} {name} {shares}s {price:.2f}")
+                    lines.append(f"  BUY {code} {shares}s {price:.2f}")
 
     save_state(state)
     # Update circuit breaker counters (preserved across rebalances)
