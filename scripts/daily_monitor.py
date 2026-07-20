@@ -214,7 +214,7 @@ def main():
     f5 = strat_results["5-Gate"]
     fh_tv, fh_pnl = fh[0], fh[1]
     fg_tv, fg_pnl = f5[0], f5[1]
-    winner = "🔥烽火V5" if fh_pnl > fg_pnl else "🛡️5-Gate"
+    winner = "FH5" if fh_pnl > fg_pnl else "5GT"
     print(f"\n---\n> {winner} | FH5 {fh_pnl:+.1f}% vs 5GT {fg_pnl:+.1f}% | initial {INITIAL:,}/strategy")
 
     # Record daily P&L data point

@@ -54,6 +54,7 @@ def get_panic_level():
     except: return 1
 
 PANIC_LABELS = {0:"greed",1:"weak",2:"caution",3:"panic",4:"extreme"}
+ST_DISP = {"烽火V5": "FHV5", "5-Gate": "5-Gate"}
 PANIC_FREEZE = 3
 PANIC_HALVE = 4
 
@@ -134,18 +135,18 @@ def main():
 
             if limit_down and can_sell:
                 cash = sh*open_p*0.9975
-                lines.append(f"LIMITDOWN {st} {pos['code']} {open_p:.2f} rcv{cash:,.0f}")
+                lines.append(f"LIMITDOWN {ST_DISP[st]} {pos['code']} {open_p:.2f} rcv{cash:,.0f}")
                 sold[st] += cash; stops[st] += 1
                 save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(open_p,2),"shares":sh,"amount":round(cash,0),"reason":"limit-down"})
             elif now_p <= pos["stop"] and can_sell:
                 cash = sh*now_p*0.9975
-                lines.append(f"STOP {st} {pos['code']} {now_p:.2f} rcv{cash:,.0f}")
+                lines.append(f"STOP {ST_DISP[st]} {pos['code']} {now_p:.2f} rcv{cash:,.0f}")
                 sold[st] += cash; stops[st] += 1
                 save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(now_p,2),"shares":sh,"amount":round(cash,0),"reason":"stop","pnl_pct":round(pnl,1)})
             elif now_p <= pos["stop"] and not can_sell:
-                lines.append(f"LOCK {st} {pos['code']} T+1"); remaining.append(pos)
+                lines.append(f"LOCK {ST_DISP[st]} {pos['code']} T+1"); remaining.append(pos)
             elif pnl < -3:
-                lines.append(f"WARN {st} {pos['code']} {now_p:.2f} {pnl:+.1f}%"); remaining.append(pos)
+                lines.append(f"WARN {ST_DISP[st]} {pos['code']} {now_p:.2f} {pnl:+.1f}%"); remaining.append(pos)
             else:
                 remaining.append(pos)
         state[st] = remaining
@@ -164,7 +165,7 @@ def main():
             state["cash"][st] += extra
             state["circuit_breaker"][st] = 0
             state["circuit_until"][st] = (date.today()+timedelta(days=CIRCUIT_DAYS)).isoformat()
-            lines.append(f"CIRCUIT {st} {CIRCUIT_BREAK} losses until {state['circuit_until'][st]}")
+            lines.append(f"CIRCUIT {ST_DISP[st]} {CIRCUIT_BREAK} losses until {state['circuit_until'][st]}")
         else:
             state["circuit_breaker"][st] = cb
 
@@ -177,13 +178,13 @@ def main():
                 q = quotes.get(pos["code"],{})
                 if q.get("now"):
                     state["cash"][st] += pos["shares"]*q["now"]*0.9975
-                    lines.append(f"HALVE {st} {pos['code']} extreme panic")
+                    lines.append(f"HALVE {ST_DISP[st]} {pos['code']} extreme panic")
                     state[st].remove(pos)
 
     # Circuit breaker status (block rebuy, but sells already processed above)
     for st in ["烽火V5","5-Gate"]:
         if in_circuit(state,st):
-            lines.append(f"CIRCUIT {st} until {state['circuit_until'][st]}")
+            lines.append(f"CIRCUIT {ST_DISP[st]} until {state['circuit_until'][st]}")
 
     # Rebuy (after sells OR when capacity available)
     if panic < PANIC_FREEZE:
@@ -199,7 +200,7 @@ def main():
             pct = 0.25 if st == "烽火V5" else (0.25 if panic <= 0 else 0.125)
             picks = run_screener(exclude, total_capital, pct)
             if picks:
-                lines.append(f"FILL {st} capital{total_capital:,.0f} slots{slots}")
+                lines.append(f"FILL {ST_DISP[st]} capital{total_capital:,.0f} slots{slots}")
                 for code,name,price,shares,cost,score in picks:
                     if len(state[st]) >= 4: break
                     state[st].append({"code":code,"name":name,"cost":price*1.0025,"stop":price*0.95,"shares":shares,"buy_date":today})
