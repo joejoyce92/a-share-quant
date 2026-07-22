@@ -132,6 +132,15 @@ def main():
             can_sell = pos["buy_date"] < today
             limit_down = last_c and (open_p/last_c-1) < -0.08
 
+            # 动态移动止损
+            dynamic_stop = pos["stop"]
+            if pnl > 20: dynamic_stop = now_p * 0.93
+            elif pnl > 10: dynamic_stop = now_p * 0.95
+            elif pnl > 5: dynamic_stop = cost  # 保本线
+            if dynamic_stop > pos["stop"]:
+                lines.append(f"TRAIL {st} {pos['code']} stop{pos['stop']:.2f}->{dynamic_stop:.2f}")
+                pos["stop"] = dynamic_stop  # persist the raise
+
             if limit_down and can_sell:
                 cash = sh*open_p*0.9975
                 lines.append(f"LIMITDOWN {st} {pos['code']} {open_p:.2f} rcv{cash:,.0f}")
