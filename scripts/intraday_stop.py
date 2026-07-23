@@ -145,12 +145,12 @@ def main():
                 cash = sh*open_p*0.9975
                 lines.append(f"LIMITDOWN {st} {pos['code']} {open_p:.2f} rcv{cash:,.0f}")
                 sold[st] += cash; stops[st] += 1
-                save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(open_p,2),"shares":sh,"amount":round(cash,0),"reason":"limit-down","pnl_pct":round(pnl,1)})
+                save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(open_p,2),"shares":sh,"amount":round(cash,0),"reason":"跌停保护","pnl_pct":round(pnl,1)})
             elif now_p <= pos["stop"] and can_sell:
                 cash = sh*now_p*0.9975
                 lines.append(f"STOP {st} {pos['code']} {now_p:.2f} rcv{cash:,.0f}")
                 sold[st] += cash; stops[st] += 1
-                save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(now_p,2),"shares":sh,"amount":round(cash,0),"reason":"stop","pnl_pct":round(pnl,1)})
+                save_trade({"date":today,"strategy":st,"action":"SELL","code":pos["code"],"name":pos.get("name",""),"price":round(now_p,2),"shares":sh,"amount":round(cash,0),"reason":"止损","pnl_pct":round(pnl,1)})
             elif now_p <= pos["stop"] and not can_sell:
                 lines.append(f"LOCK {st} {pos['code']} T+1"); remaining.append(pos)
             elif pnl < -3:
@@ -213,7 +213,7 @@ def main():
                     if len(state[st]) >= 4: break
                     state[st].append({"code":code,"name":name,"cost":price*1.0025,"stop":price*0.95,"shares":shares,"buy_date":today})
                     state["cash"][st] -= cost
-                    save_trade({"date":today,"strategy":st,"action":"BUY","code":code,"name":name,"price":round(price,2),"shares":shares,"amount":round(cost,0),"reason":"rebuy"})
+                    save_trade({"date":today,"strategy":st,"action":"BUY","code":code,"name":name,"price":round(price,2),"shares":shares,"amount":round(cost,0),"reason":"补仓"})
                     lines.append(f"  BUY {code} {shares}s {price:.2f}")
 
     save_state(state)
